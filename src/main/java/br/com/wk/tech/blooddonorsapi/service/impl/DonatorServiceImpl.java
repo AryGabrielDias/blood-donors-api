@@ -2,6 +2,7 @@ package br.com.wk.tech.blooddonorsapi.service.impl;
 
 import br.com.wk.tech.blooddonorsapi.dto.DonatorDTO;
 import br.com.wk.tech.blooddonorsapi.model.Donator;
+import br.com.wk.tech.blooddonorsapi.repository.BloodTypeRepository;
 import br.com.wk.tech.blooddonorsapi.repository.DonatorRepository;
 import br.com.wk.tech.blooddonorsapi.service.DonatorService;
 import org.slf4j.Logger;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.transaction.Transactional;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -20,23 +22,49 @@ public class DonatorServiceImpl implements DonatorService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DonatorServiceImpl.class);
 
-    private final DonatorRepository donorsRepository;
+    private final DonatorRepository donatorRepository;
+
+    private final BloodTypeRepository bloodTypeRepository;
 
     @Autowired
-    public DonatorServiceImpl(DonatorRepository donorsRepository) {
-        this.donorsRepository = donorsRepository;
+    public DonatorServiceImpl(DonatorRepository donatorRepository, BloodTypeRepository bloodTypeRepository) {
+        this.bloodTypeRepository = bloodTypeRepository;
+        this.donatorRepository = donatorRepository;
     }
 
     @Override
     @Transactional
     public DonatorDTO saveBloodDonator(DonatorDTO donatorDTO) {
-        return null;
+
+        var dto = new DonatorDTO();
+
+        try {
+            var donator = this.dtoToEntity(donatorDTO);
+
+            dto = this.entityToDto(donatorRepository.save(donator));
+        }
+        catch (Exception e) {
+            LOGGER.error(e.getMessage());
+        }
+        return dto;
     }
 
     @Override
     @Transactional
     public DonatorDTO updateBloodDonator(DonatorDTO donatorDTO) {
-        return null;
+
+        var dto = new DonatorDTO();
+
+        try {
+            var donator = this.dtoToEntity(donatorDTO);
+
+            dto = this.entityToDto(donatorRepository.saveAndFlush(donator));
+        }
+        catch (Exception e) {
+            LOGGER.error(e.getMessage());
+        }
+        return dto;
+
     }
 
     @Override
@@ -45,7 +73,7 @@ public class DonatorServiceImpl implements DonatorService {
         var donatorDtoList = new ArrayList<DonatorDTO>();
 
         try {
-            var donatorList = donorsRepository.findAll();
+            var donatorList = donatorRepository.findAll();
 
             for (Donator donator : donatorList) {
                 donatorDtoList.add(this.entityToDto(donator));
@@ -63,7 +91,7 @@ public class DonatorServiceImpl implements DonatorService {
     public Long deleteDonator(Long donatorId) {
 
         try {
-            donorsRepository.deleteById(donatorId);
+            donatorRepository.deleteById(donatorId);
         } catch (Exception e) {
             LOGGER.error(e.getMessage());
         }
@@ -77,7 +105,7 @@ public class DonatorServiceImpl implements DonatorService {
 
         try {
             donatorDto = this
-                    .entityToDto(donorsRepository.findByDonatorId(donatorId));
+                    .entityToDto(donatorRepository.findByDonatorId(donatorId));
 
         } catch (Exception e) {
             LOGGER.error(e.getMessage());
@@ -118,11 +146,34 @@ public class DonatorServiceImpl implements DonatorService {
         donator.setName(donatorDTO.getName());
         donator.setCpf(donatorDTO.getCpf());
         donator.setRg(donatorDTO.getRg());
+        donator.setBirthDate(this
+                .convertStringDateToLocalDateTime(donatorDTO.getBirthDate()));
+        donator.setGender(donatorDTO.getGender());
+        donator.setMothersName(donatorDTO.getMothersName());
+        donator.setFathersName(donatorDTO.getFathersName());
+        donator.setEmail(donatorDTO.getEmail());
+        donator.setZipCode(donatorDTO.getZipCode());
+        donator.setAddress(donatorDTO.getAddress());
+        donator.setAddressNumber(donatorDTO.getAddressNumber());
+        donator.setNeighborhood(donatorDTO.getNeighborhood());
+        donator.setCity(donatorDTO.getCity());
+        donator.setState(donator.getState());
+        donator.setPhoneNumber(donatorDTO.getPhoneNumber());
+        donator.setCelPhoneNumber(donatorDTO.getCelPhoneNumber());
+        donator.setHeight(donatorDTO.getHeight());
+        donator.setWeight(donatorDTO.getWeight());
+        donator.setBloodType(bloodTypeRepository
+                .findByBloodType(donatorDTO.getBloodType()));
         return donator;
     }
 
     private String convertLocalDateTimeToString(LocalDateTime dateTime) {
         var dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
         return dateTime.format(dateTimeFormatter);
+    }
+
+    public LocalDateTime convertStringDateToLocalDateTime(String date) {
+        var parser = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        return LocalDate.parse(date, parser).atStartOfDay();
     }
 }
