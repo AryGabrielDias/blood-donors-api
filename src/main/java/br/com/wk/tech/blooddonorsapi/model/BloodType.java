@@ -1,12 +1,11 @@
 package br.com.wk.tech.blooddonorsapi.model;
 
+import jakarta.persistence.*;
 import lombok.Data;
-
-import javax.persistence.*;
 
 @Entity
 @Table(name = "tipo_sanguineo",
-        uniqueConstraints = {@UniqueConstraint(columnNames = "id")})
+        schema = "banco")
 @Data
 public class BloodType {
 

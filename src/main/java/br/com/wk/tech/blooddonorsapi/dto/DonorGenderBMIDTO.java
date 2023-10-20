@@ -7,7 +7,9 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class GenderObesePercentageDTO {
+public class DonorGenderBMIDTO {
     private String gender;
-    private String obesePercentage;
+    private Double BMI;
+    private boolean isObese;
+    private Integer count;
 }

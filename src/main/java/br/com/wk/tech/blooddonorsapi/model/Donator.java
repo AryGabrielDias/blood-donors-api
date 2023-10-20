@@ -1,13 +1,13 @@
 package br.com.wk.tech.blooddonorsapi.model;
 
+import jakarta.persistence.*;
 import lombok.Data;
 
-import javax.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "doador",
-        uniqueConstraints = {@UniqueConstraint(columnNames = "id")})
+        schema = "banco")
 @Data
 public class Donator {
 
@@ -45,7 +45,7 @@ public class Donator {
     @Column(name = "endereco", nullable = false)
     private String address;
 
-    @Column(name = "number", nullable = false)
+    @Column(name = "numero", nullable = false)
     private Integer addressNumber;
 
     @Column(name = "bairro", nullable = false)
@@ -66,7 +66,7 @@ public class Donator {
     @Column(name = "altura", nullable = false)
     private Double height;
 
-    @Column(name = "cidade", nullable = false)
+    @Column(name = "peso", nullable = false)
     private Integer weight;
 
     @MapsId

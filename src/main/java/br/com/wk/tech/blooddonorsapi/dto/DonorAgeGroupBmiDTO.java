@@ -12,4 +12,5 @@ public class DonorAgeGroupBmiDTO {
     private String ageGroup;
     private Integer age;
     private Double BMI;
+    private Integer count;
 }

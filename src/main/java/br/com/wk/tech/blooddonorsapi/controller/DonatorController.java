@@ -34,17 +34,17 @@ public class DonatorController {
         return new ResponseEntity<>(donatorService.saveBloodDonator(donatorDTO), HttpStatus.CREATED);
     }
 
-    @PostMapping
+    @PutMapping
     public ResponseEntity<DonatorDTO> updateBloodDonator(@RequestBody  DonatorDTO donatorDTO) {
         return new ResponseEntity<>(donatorService.updateBloodDonator(donatorDTO), HttpStatus.OK);
     }
 
-    @PostMapping
+    @GetMapping(("/{donatorId}"))
     public ResponseEntity<DonatorDTO> getBloodDonatorById(@PathVariable("donatorId") Long donatorId) {
         return new ResponseEntity<>(donatorService.getDonatorById(donatorId), HttpStatus.OK);
     }
 
-    @PostMapping
+    @DeleteMapping("/{donatorId}")
     public ResponseEntity<Long> deleteBloodDonator(@PathVariable("donatorId") Long donatorId) {
         return new ResponseEntity<>(donatorService.deleteDonator(donatorId), HttpStatus.OK);
     }

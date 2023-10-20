@@ -1,0 +1,23 @@
+db:
+  host: mysql-container
+  port: 3306
+  schema: banco
+  username: root
+  password: root
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+      dialect: org.hibernate.dialect.MySQLInnoDBDialect
+    show-sql: true
+    properties:
+      hibernate:
+        default_schema: banco
+  datasource:
+    validationQuery: SELECT 1
+
+server.port: 8080
+
+logging.level:
+  br.com.srm: DEBUG

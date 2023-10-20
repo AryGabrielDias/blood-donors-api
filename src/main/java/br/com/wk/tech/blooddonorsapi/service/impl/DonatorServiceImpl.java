@@ -5,12 +5,13 @@ import br.com.wk.tech.blooddonorsapi.model.Donator;
 import br.com.wk.tech.blooddonorsapi.repository.BloodTypeRepository;
 import br.com.wk.tech.blooddonorsapi.repository.DonatorRepository;
 import br.com.wk.tech.blooddonorsapi.service.DonatorService;
+import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import javax.transaction.Transactional;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;

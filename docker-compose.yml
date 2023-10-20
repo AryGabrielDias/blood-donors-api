@@ -1,0 +1,29 @@
+version: "3.1"
+
+services:
+  mysql-docker-blood-donors-container:
+    image: mysql/mysql-server:latest
+    container_name: mysql-container
+    restart: always
+    environment:
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: banco
+    volumes:
+      - /data/mysql
+    ports:
+      - "3306:3306"
+
+  blood-donors-api:
+    image: blood-donors-api-image:latest
+    container_name: blood-donors-api
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    depends_on:
+      - mysql-docker-blood-donors-container
+    ports:
+      - "8080:8080"
+    volumes:
+      - /data/spring-boot-app
