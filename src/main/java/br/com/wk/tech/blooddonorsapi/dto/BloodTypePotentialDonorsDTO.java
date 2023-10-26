@@ -9,5 +9,5 @@ import lombok.*;
 @Builder
 public class BloodTypePotentialDonorsDTO {
     private String bloodType;
-    private Double numberOfPotentialDonors;
+    private Integer numberOfPotentialDonors;
 }

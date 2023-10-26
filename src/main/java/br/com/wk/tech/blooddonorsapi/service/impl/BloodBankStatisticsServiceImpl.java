@@ -1,14 +1,14 @@
 package br.com.wk.tech.blooddonorsapi.service.impl;
 
 import br.com.wk.tech.blooddonorsapi.dto.*;
-import br.com.wk.tech.blooddonorsapi.model.BloodType;
 import br.com.wk.tech.blooddonorsapi.model.Donator;
-import br.com.wk.tech.blooddonorsapi.repository.BloodTypeRepository;
 import br.com.wk.tech.blooddonorsapi.repository.DonatorRepository;
 import br.com.wk.tech.blooddonorsapi.service.BloodBankStatisticsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,12 +18,9 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
 
     private final DonatorRepository donatorRepository;
 
-    private final BloodTypeRepository bloodTypeRepository;
-
     @Autowired
-    public BloodBankStatisticsServiceImpl(DonatorRepository donatorRepository, BloodTypeRepository bloodTypeRepository) {
+    public BloodBankStatisticsServiceImpl(DonatorRepository donatorRepository) {
         this.donatorRepository = donatorRepository;
-        this.bloodTypeRepository = bloodTypeRepository;
     }
 
     @Override
@@ -67,7 +64,7 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
 
             var donatorAge = LocalDateTime.now().getYear() - donator.getBirthDate().getYear();
 
-            var dto = this.getAgeGroupAndBMI(donatorAge, donator.getWeight(), donator.getHeight());
+            var dto = this.getAgeGroupAndBMI(donatorAge, donator.getWeight(), Double.valueOf(donator.getHeight()));
 
             donorAgeGroupBmiDTOList.add(dto);
         }
@@ -84,7 +81,7 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
 
         for (Donator donator : donorsList) {
             var dto = this.getGenderAndBMI(
-                    donator.getGender(), donator.getWeight(), donator.getHeight());
+                    donator.getGender(), donator.getWeight(), Double.valueOf(donator.getHeight()));
 
             donorGenderBMIDTOList.add(dto);
         }
@@ -99,25 +96,32 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
 
         var donorsList = donatorRepository.findAll();
 
-        var bloodTypeList = bloodTypeRepository.findAll();
+        var bloodTypeList = this.getBloodTypeArray();
 
-        for (BloodType bloodType : bloodTypeList) {
+        for (String bloodType : bloodTypeList) {
 
-            var donorsNumber = donorsList.stream()
-                    .filter(obj -> obj.getBloodType().getType().equals(bloodType.getType()))
-                    .mapToLong(Donator::getId).sum();
+            var donorsNumber = 0;
+            var ageSum = 0;
 
-            var ageSum = donorsList.stream()
-                    .filter(obj -> obj.getBloodType().getType().equals(bloodType.getType()))
-                    .mapToInt(obj -> LocalDateTime.now().getYear() - obj.getBirthDate().getYear()).sum();
+            for (Donator donator : donorsList) {
+                if (donator.getBloodType().equals(bloodType)) {
+                    var age = (LocalDateTime.now().getYear() - donator.getBirthDate().getYear());
+                    ageSum = ageSum + age;
+                    donorsNumber++;
+                }
+
+            }
 
             var dto = new BloodTypeAverageAgeDTO();
-            dto.setBloodType(bloodType.getType());
-            dto.setAverageAge((double) (ageSum / donorsNumber));
+            dto.setBloodType(bloodType);
+
+            var bmi = (double) ageSum / (double) donorsNumber;
+
+            var averageAge = bmi > 0.0 ? this.getDecimalFormat(bmi) : 0;
+            dto.setAverageAge(averageAge);
 
             bloodTypeAverageAgeDTOList.add(dto);
         }
-
 
         return bloodTypeAverageAgeDTOList;
     }
@@ -129,10 +133,10 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
 
         var donorsList = donatorRepository.findAll();
 
-        var bloodTypeList = bloodTypeRepository.findAll();
+        var bloodTypeList = this.getBloodTypeArray();
 
-        for (BloodType bloodType : bloodTypeList) {
-            var dto = this.getPotentialDonorsForBloodType(donorsList, bloodType.getType());
+        for (String bloodType : bloodTypeList) {
+            var dto = this.getPotentialDonorsForBloodType(donorsList, bloodType);
             bloodTypePotentialDonorsDTOList.add(dto);
         }
 
@@ -149,16 +153,20 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
         for (String gender : genderList) {
             var dto = new GenderObesePercentageDTO();
 
-            var totalGenderDonors = list.stream()
-                    .filter(obj -> obj.getGender().equals(gender))
-                    .mapToInt(DonorGenderBMIDTO::getCount).sum();
+            var totalGenderDonors = 0;
+            var obeseNumber = 0;
 
-            var obeseNumber = list.stream()
-                    .filter(obj -> obj.getGender().equals(gender))
-                    .filter(DonorGenderBMIDTO::isObese)
-                    .mapToInt(DonorGenderBMIDTO::getCount).sum();
+            for (DonorGenderBMIDTO donorGenderBMIDTO : list) {
+                if (donorGenderBMIDTO.getGender().equals(gender)) {
+                    totalGenderDonors++;
 
-            var percentage = (obeseNumber * 100) / totalGenderDonors;
+                    if (donorGenderBMIDTO.isObese()) {
+                        obeseNumber++;
+                    }
+                }
+            }
+
+            var percentage = totalGenderDonors > 0 ? (obeseNumber * 100) / totalGenderDonors : 0;
 
             dto.setGender(gender);
             dto.setObesePercentage(percentage + "%");
@@ -188,16 +196,24 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
         for (String ageGroup : ageGroupList) {
             var dto = new AgeGroupAverageBMIDTO();
 
-            var donorsNumber = list.stream().filter(
-                    obj -> obj.getAgeGroup().equals(ageGroup))
-                    .mapToInt(DonorAgeGroupBmiDTO::getCount).sum();
+            var donorsNumber = 0;
+            var bmiSum = 0.0;
 
-            var bmiSum = list.stream().filter(
-                            obj -> obj.getAgeGroup().equals(ageGroup))
-                    .mapToInt(DonorAgeGroupBmiDTO::getCount).sum();
+            for (DonorAgeGroupBmiDTO donorAgeGroupBmiDTO : list) {
+                if (donorAgeGroupBmiDTO.getAgeGroup().equals(ageGroup)) {
+                    donorsNumber++;
+                    bmiSum = bmiSum + donorAgeGroupBmiDTO.getBMI();
+                }
+            }
 
             dto.setAgeGroup(ageGroup);
-            dto.setAverageBMI((double) (bmiSum / donorsNumber));
+
+            if (donorsNumber == 0) {
+                dto.setAverageBMI(0.00);
+            }
+            else {
+                dto.setAverageBMI(this.getDecimalFormat((bmiSum / donorsNumber)));
+            }
 
             ageGroupAverageBMIDTOList.add(dto);
         }
@@ -210,8 +226,12 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
         dto.setGender(gender);
         dto.setBMI(this.calculateBMI(weight, height));
         dto.setObese(this.calculateBMI(weight, height) > 30);
-        dto.setCount(1);
         return dto;
+    }
+
+    private Double getDecimalFormat(Double bmi) {
+        return BigDecimal.valueOf(bmi)
+                .setScale(2, RoundingMode.DOWN).doubleValue();
     }
 
     private DonorAgeGroupBmiDTO getAgeGroupAndBMI(Integer donatorAge, Integer weight, Double height) {
@@ -220,56 +240,56 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
         if (donatorAge >= 0 && donatorAge < 11) {
             dto.setAgeGroup("Faixa de 0 a 10");
             dto.setAge(donatorAge);
-            dto.setBMI(this.calculateBMI(weight, height));
-            dto.setCount(1);
+            var bmi = this.getDecimalFormat(this.calculateBMI(weight, height));
+            dto.setBMI(bmi);
         }
         else if (donatorAge >= 11 && donatorAge < 21) {
             dto.setAgeGroup("Faixa de 11 a 20");
             dto.setAge(donatorAge);
-            dto.setBMI(this.calculateBMI(weight, height));
-            dto.setCount(1);
+            var bmi = this.getDecimalFormat(this.calculateBMI(weight, height));
+            dto.setBMI(bmi);
         }
         else if (donatorAge >= 21 && donatorAge < 31) {
             dto.setAgeGroup("Faixa de 21 a 30");
             dto.setAge(donatorAge);
-            dto.setBMI(this.calculateBMI(weight, height));
-            dto.setCount(1);
+            var bmi = this.getDecimalFormat(this.calculateBMI(weight, height));
+            dto.setBMI(bmi);
         }
         else if (donatorAge >= 31 && donatorAge < 41) {
             dto.setAgeGroup("Faixa de 31 a 40");
             dto.setAge(donatorAge);
-            dto.setBMI(this.calculateBMI(weight, height));
-            dto.setCount(1);
+            var bmi = this.getDecimalFormat(this.calculateBMI(weight, height));
+            dto.setBMI(bmi);
         }
         else if (donatorAge >= 41 && donatorAge < 51) {
             dto.setAgeGroup("Faixa de 41 a 50");
             dto.setAge(donatorAge);
-            dto.setBMI(this.calculateBMI(weight, height));
-            dto.setCount(1);
+            var bmi = this.getDecimalFormat(this.calculateBMI(weight, height));
+            dto.setBMI(bmi);
         }
         else if (donatorAge >= 51 && donatorAge < 61) {
             dto.setAgeGroup("Faixa de 51 a 60");
             dto.setAge(donatorAge);
-            dto.setBMI(this.calculateBMI(weight, height));
-            dto.setCount(1);
+            var bmi = this.getDecimalFormat(this.calculateBMI(weight, height));
+            dto.setBMI(bmi);
         }
         else if (donatorAge >= 61 && donatorAge < 71) {
             dto.setAgeGroup("Faixa de 61 a 70");
             dto.setAge(donatorAge);
-            dto.setBMI(this.calculateBMI(weight, height));
-            dto.setCount(1);
+            var bmi = this.getDecimalFormat(this.calculateBMI(weight, height));
+            dto.setBMI(bmi);
         }
         else if (donatorAge >= 71 && donatorAge < 81) {
             dto.setAgeGroup("Faixa de 71 a 80");
             dto.setAge(donatorAge);
-            dto.setBMI(this.calculateBMI(weight, height));
-            dto.setCount(1);
+            var bmi = this.getDecimalFormat(this.calculateBMI(weight, height));
+            dto.setBMI(bmi);
         }
         else {
             dto.setAgeGroup("Faixa Acima de 80");
             dto.setAge(donatorAge);
-            dto.setBMI(this.calculateBMI(weight, height));
-            dto.setCount(1);
+            var bmi = this.getDecimalFormat(this.calculateBMI(weight, height));
+            dto.setBMI(bmi);
         }
 
         return dto;
@@ -311,6 +331,20 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
         return stateArray;
     }
 
+    private List<String> getBloodTypeArray() {
+        var stateArray = new ArrayList<String>();
+        stateArray.add("A+");
+        stateArray.add("A-");
+        stateArray.add("B+");
+        stateArray.add("B-");
+        stateArray.add("AB+");
+        stateArray.add("AB-");
+        stateArray.add("O+");
+        stateArray.add("O-");
+        return stateArray;
+    }
+
+
     private BloodTypePotentialDonorsDTO getPotentialDonorsForBloodType(List<Donator> donorsList, String bloodType) {
 
         var dto = new BloodTypePotentialDonorsDTO();
@@ -318,120 +352,156 @@ public class BloodBankStatisticsServiceImpl implements BloodBankStatisticsServic
         switch (bloodType) {
             case "A+" -> {
 
-                var potentialDonorsNumber = donorsList.stream()
-                        .filter(obj -> obj.getWeight() > 50)
-                        .filter(obj -> (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) > 15 &&
-                                (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) < 70)
-                        .filter(obj -> obj.getBloodType().getType().equals("A+") || obj.getBloodType().getType().equals("A-") ||
-                                obj.getBloodType().getType().equals("O+") || obj.getBloodType().getType().equals("O-"))
-                        .mapToLong(Donator::getId)
-                        .sum();
+                var potentialDonorsNumber = 0;
+
+                for (Donator donator : donorsList) {
+
+                    if (this.isWeightAndAgeAllowedForDonation(donator)) {
+
+                        if (donator.getBloodType().equals("A+") || donator.getBloodType().equals("A-") ||
+                                donator.getBloodType().equals("O+") || donator.getBloodType().equals("O-")) {
+                            potentialDonorsNumber++;
+                        }
+                    }
+                }
 
                 dto.setBloodType(bloodType);
-                dto.setNumberOfPotentialDonors((double) potentialDonorsNumber);
+                dto.setNumberOfPotentialDonors(potentialDonorsNumber);
             }
             case "A-" -> {
 
-                var potentialDonorsNumber = donorsList.stream()
-                        .filter(obj -> obj.getWeight() > 50)
-                        .filter(obj -> (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) > 15 &&
-                                (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) < 70)
-                        .filter(obj -> obj.getBloodType().getType().equals("A-") ||
-                                obj.getBloodType().getType().equals("O-"))
-                        .mapToLong(Donator::getId)
-                        .sum();
+                var potentialDonorsNumber = 0;
+
+                for (Donator donator : donorsList) {
+
+                    if (this.isWeightAndAgeAllowedForDonation(donator)) {
+
+                        if (donator.getBloodType().equals("A-") || donator.getBloodType().equals("O-")) {
+                            potentialDonorsNumber++;
+                        }
+                    }
+                }
 
                 dto.setBloodType(bloodType);
-                dto.setNumberOfPotentialDonors((double) potentialDonorsNumber);
+                dto.setNumberOfPotentialDonors(potentialDonorsNumber);
             }
             case "B+" -> {
 
-                var potentialDonorsNumber = donorsList.stream()
-                        .filter(obj -> obj.getWeight() > 50)
-                        .filter(obj -> (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) > 15 &&
-                                (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) < 70)
-                        .filter(obj -> obj.getBloodType().getType().equals("B+") || obj.getBloodType().getType().equals("B-") ||
-                                obj.getBloodType().getType().equals("O+") || obj.getBloodType().getType().equals("O-"))
-                        .mapToLong(Donator::getId)
-                        .sum();
+                var potentialDonorsNumber = 0;
+
+                for (Donator donator : donorsList) {
+
+                    if (this.isWeightAndAgeAllowedForDonation(donator)) {
+
+                        if (donator.getBloodType().equals("B+") || donator.getBloodType().equals("B-") ||
+                                donator.getBloodType().equals("O+") || donator.getBloodType().equals("O-")) {
+                            potentialDonorsNumber++;
+                        }
+                    }
+                }
 
                 dto.setBloodType(bloodType);
-                dto.setNumberOfPotentialDonors((double) potentialDonorsNumber);
+                dto.setNumberOfPotentialDonors(potentialDonorsNumber);
             }
             case "B-" -> {
 
-                var potentialDonorsNumber = donorsList.stream()
-                        .filter(obj -> obj.getWeight() > 50)
-                        .filter(obj -> (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) > 15 &&
-                                (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) < 70)
-                        .filter(obj -> obj.getBloodType().getType().equals("B-") ||
-                                obj.getBloodType().getType().equals("O-"))
-                        .mapToLong(Donator::getId)
-                        .sum();
+                var potentialDonorsNumber = 0;
+
+                for (Donator donator : donorsList) {
+
+                    if (this.isWeightAndAgeAllowedForDonation(donator)) {
+
+                        if (donator.getBloodType().equals("B-") || donator.getBloodType().equals("O-")) {
+                            potentialDonorsNumber++;
+                        }
+                    }
+                }
 
                 dto.setBloodType(bloodType);
-                dto.setNumberOfPotentialDonors((double) potentialDonorsNumber);
+                dto.setNumberOfPotentialDonors(potentialDonorsNumber);
             }
             case "AB+" -> {
 
-                var potentialDonorsNumber = donorsList.stream()
-                        .filter(obj -> obj.getWeight() > 50)
-                        .filter(obj -> (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) > 15 &&
-                                (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) < 70)
-                        .filter(obj -> obj.getBloodType().getType().equals("A+") || obj.getBloodType().getType().equals("B+") ||
-                                obj.getBloodType().getType().equals("O+") || obj.getBloodType().getType().equals("AB+") ||
-                                obj.getBloodType().getType().equals("A-") || obj.getBloodType().getType().equals("B-") ||
-                                obj.getBloodType().getType().equals("O-") || obj.getBloodType().getType().equals("AB-"))
-                        .mapToLong(Donator::getId)
-                        .sum();
+                var potentialDonorsNumber = 0;
+
+                for (Donator donator : donorsList) {
+
+                    if (this.isWeightAndAgeAllowedForDonation(donator)) {
+
+                        if (donator.getBloodType().equals("A+") || donator.getBloodType().equals("A-") ||
+                                donator.getBloodType().equals("B+") || donator.getBloodType().equals("B-") ||
+                                donator.getBloodType().equals("AB+") || donator.getBloodType().equals("AB-") ||
+                                donator.getBloodType().equals("O+") || donator.getBloodType().equals("O-")) {
+                            potentialDonorsNumber++;
+                        }
+                    }
+                }
 
                 dto.setBloodType(bloodType);
-                dto.setNumberOfPotentialDonors((double) potentialDonorsNumber);
+                dto.setNumberOfPotentialDonors(potentialDonorsNumber);
             }
             case "AB-" -> {
 
-                var potentialDonorsNumber = donorsList.stream()
-                        .filter(obj -> obj.getWeight() > 50)
-                        .filter(obj -> (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) > 15 &&
-                                (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) < 70)
-                        .filter(obj -> obj.getBloodType().getType().equals("A-") || obj.getBloodType().getType().equals("B-") ||
-                                obj.getBloodType().getType().equals("O-") || obj.getBloodType().getType().equals("AB-"))
-                        .mapToLong(Donator::getId)
-                        .sum();
+                var potentialDonorsNumber = 0;
+
+                for (Donator donator : donorsList) {
+
+                    if (this.isWeightAndAgeAllowedForDonation(donator)) {
+
+                        if (donator.getBloodType().equals("A-") || donator.getBloodType().equals("B-") ||
+                                donator.getBloodType().equals("AB-") || donator.getBloodType().equals("O-")) {
+                            potentialDonorsNumber++;
+                        }
+                    }
+                }
 
                 dto.setBloodType(bloodType);
-                dto.setNumberOfPotentialDonors((double) potentialDonorsNumber);
+                dto.setNumberOfPotentialDonors(potentialDonorsNumber);
             }
             case "O+" -> {
 
-                var potentialDonorsNumber = donorsList.stream()
-                        .filter(obj -> obj.getWeight() > 50)
-                        .filter(obj -> (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) > 15 &&
-                                (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) < 70)
-                        .filter(obj -> obj.getBloodType().getType().equals("O+") ||
-                                obj.getBloodType().getType().equals("O-"))
-                        .mapToLong(Donator::getId)
-                        .sum();
+                var potentialDonorsNumber = 0;
+
+                for (Donator donator : donorsList) {
+
+                    if (this.isWeightAndAgeAllowedForDonation(donator)) {
+
+                        if (donator.getBloodType().equals("O+") || donator.getBloodType().equals("O-")) {
+                            potentialDonorsNumber++;
+                        }
+                    }
+                }
 
                 dto.setBloodType(bloodType);
-                dto.setNumberOfPotentialDonors((double) potentialDonorsNumber);
+                dto.setNumberOfPotentialDonors(potentialDonorsNumber);
             }
             default -> {
 
-                var potentialDonorsNumber = donorsList.stream()
-                        .filter(obj -> obj.getWeight() > 50)
-                        .filter(obj -> (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) > 15 &&
-                                (LocalDateTime.now().getYear() - obj.getBirthDate().getYear()) < 70)
-                        .filter(obj -> obj.getBloodType().getType().equals("O-"))
-                        .mapToLong(Donator::getId)
-                        .sum();
+                var potentialDonorsNumber = 0;
+
+                for (Donator donator : donorsList) {
+
+                    if (this.isWeightAndAgeAllowedForDonation(donator)) {
+
+                        if (donator.getBloodType().equals("O-")) {
+                            potentialDonorsNumber++;
+                        }
+                    }
+                }
 
                 dto.setBloodType(bloodType);
-                dto.setNumberOfPotentialDonors((double) potentialDonorsNumber);
-
+                dto.setNumberOfPotentialDonors(potentialDonorsNumber);
             }
         }
 
         return dto;
+    }
+
+    private boolean isWeightAndAgeAllowedForDonation(Donator donator) {
+        if (donator.getWeight() > 50) {
+            var age = (LocalDateTime.now().getYear() - donator.getBirthDate().getYear());
+            return age > 15 && age < 70;
+        }
+        return false;
     }
 }

@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 public class Donator {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false, unique = true)
     private Long id;
 
@@ -64,14 +65,12 @@ public class Donator {
     private String celPhoneNumber;
 
     @Column(name = "altura", nullable = false)
-    private Double height;
+    private String height;
 
     @Column(name = "peso", nullable = false)
     private Integer weight;
 
-    @MapsId
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_tipo_sanguineo")
-    private BloodType bloodType;
+    @Column(name = "tipo_sanguineo", nullable = false)
+    private String bloodType;
 
 }
